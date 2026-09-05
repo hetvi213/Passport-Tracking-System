@@ -1,32 +1,18 @@
-# Passport Status Tracker
+# Passport Tracking System
 
-A small FastAPI application for registering passport applications, simulating
-status changes, and emailing applicants when their status changes.
+A web-based passport application tracker built with FastAPI and MySQL. Users can register an application, view its current status, and receive an email when the status changes. Administrators can manage each application through a dedicated dashboard.
 
-## Project layout
+## Features
 
-```text
-.
-|-- main.py              # Routes and status-check workflow
-|-- database.py          # MySQL engine and session setup
-|-- models.py            # SQLAlchemy applications table
-|-- notifications.py     # SMTP email delivery
-|-- requirements.txt     # Python dependencies
-|-- .env.example         # Configuration template
-`-- templates/
-    `-- index.html       # Dashboard with inline CSS and JavaScript
-```
+- Register and update passport applicant details
+- Track applications through a five-stage lifecycle
+- Manage application statuses from an admin dashboard
+- Detect status changes automatically in the background
+- Send one email notification for each distinct status change
+- Trigger a status check manually when required
+- Keep database and email credentials outside the source code
 
-## How the application works
-
-1. `GET /` reads applications from MySQL and renders the dashboard.
-2. `POST /add-application` creates an application or updates its contact details.
-3. A background loop automatically runs status checks at the configured interval.
-4. `GET /admin` provides an administration dashboard for manual status updates.
-5. A record is emailed only when `current_status` differs from `last_known_status`.
-6. After detection, `last_known_status` is updated so the same change is not emailed again.
-
-The lifecycle is:
+## Status lifecycle
 
 ```text
 Application Submitted
@@ -36,9 +22,40 @@ Application Submitted
   -> Dispatched
 ```
 
-## Setup
+## Technology stack
 
-Create the MySQL database in MySQL Workbench:
+- **Backend:** Python, FastAPI, Uvicorn
+- **Database:** MySQL, SQLAlchemy, aiomysql
+- **Frontend:** Jinja2, HTML, CSS, JavaScript
+- **Notifications:** SMTP email
+
+## Project structure
+
+```text
+.
+|-- main.py              # Routes and status-check workflow
+|-- database.py          # Async MySQL engine and session setup
+|-- models.py            # SQLAlchemy application model
+|-- notifications.py     # SMTP email delivery
+|-- requirements.txt     # Python dependencies
+|-- .env.example         # Configuration template
+`-- templates/
+    |-- index.html       # User dashboard
+    `-- admin.html       # Administration dashboard
+```
+
+## Getting started
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/hetvi213/Passport-Tracking-System.git
+cd Passport-Tracking-System
+```
+
+### 2. Create the database
+
+Run the following in MySQL Workbench or another MySQL client:
 
 ```sql
 CREATE DATABASE IF NOT EXISTS passport_tracker
@@ -46,7 +63,11 @@ CHARACTER SET utf8mb4
 COLLATE utf8mb4_unicode_ci;
 ```
 
-Create and activate the virtual environment:
+The application creates its required table automatically when it starts.
+
+### 3. Create a virtual environment and install dependencies
+
+On Windows PowerShell:
 
 ```powershell
 python -m venv .venv
@@ -54,30 +75,64 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 ```
 
-Copy the configuration template:
+On macOS or Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+### 4. Configure the application
+
+Copy the example environment file:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Automatic checks are enabled by default and run every 10 seconds. Configure them
-in `.env` with `AUTOMATIC_CHECKS_ENABLED` and `STATUS_CHECK_INTERVAL_SECONDS`.
-The minimum supported interval is 10 seconds.
+On macOS or Linux, use `cp .env.example .env` instead. Then update `.env` with your MySQL and SMTP settings.
 
-For Gmail, enable two-step verification and place a Google App Password in
-`SMTP_PASSWORD`. Placeholder addresses under `example.com`, `example.org`, and
-`example.net` are skipped automatically.
+| Variable | Purpose | Example/default |
+| --- | --- | --- |
+| `DATABASE_URL` | Async MySQL connection string | `mysql+aiomysql://root:@localhost:3306/passport_tracker?charset=utf8mb4` |
+| `AUTOMATIC_CHECKS_ENABLED` | Enables background status checks | `true` |
+| `STATUS_CHECK_INTERVAL_SECONDS` | Delay between checks (minimum 10 seconds) | `10` |
+| `SMTP_HOST` | SMTP server hostname | `smtp.gmail.com` |
+| `SMTP_PORT` | SMTP server port | `587` |
+| `SMTP_USERNAME` | SMTP account username | Your email address |
+| `SMTP_PASSWORD` | SMTP password or app password | Your app password |
+| `SMTP_FROM` | Notification sender address | Your email address |
+| `SMTP_USE_SSL` | Uses implicit SSL when set to `true` | `false` |
 
-Start the application:
+For Gmail, enable two-step verification and use a Google App Password for `SMTP_PASSWORD`. Never commit the local `.env` file.
+
+### 5. Run the application
 
 ```powershell
 python -m uvicorn main:app --reload
 ```
 
-Open http://127.0.0.1:8000.
+Open the following pages:
 
-## Status lifecycle
+- User dashboard: <http://127.0.0.1:8000>
+- Admin dashboard: <http://127.0.0.1:8000/admin>
+- Interactive API documentation: <http://127.0.0.1:8000/docs>
 
-The automatic monitor does not invent or randomly advance statuses. It detects
-changes made through the admin dashboard or directly in the database. Each
-distinct change produces at most one notification email.
+## Main routes
+
+| Method | Route | Description |
+| --- | --- | --- |
+| `GET` | `/` | Displays registered applications |
+| `POST` | `/add-application` | Creates an application or updates its contact details |
+| `GET` | `/admin` | Displays the administration dashboard |
+| `POST` | `/admin/update-status` | Changes an application's status |
+| `POST` | `/run-check` | Runs a status-change check manually |
+
+## How notifications work
+
+The background monitor compares an application's `current_status` with its `last_known_status`. When they differ, it sends an email and updates the stored known status, ensuring the same change generates at most one notification. The monitor detects updates made through the admin dashboard or directly in the database; it does not randomly advance applications.
+
+## License
+
+This project is available for educational and portfolio purposes.
