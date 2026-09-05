@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Passport Status Tracker</title>
+    <style>
+        :root { --navy:#102a43; --blue:#1769aa; --ink:#243b53; --muted:#627d98; --line:#d9e2ec; }
+        * { box-sizing:border-box; }
+        body { margin:0; min-height:100vh; font-family:Inter,Segoe UI,Arial,sans-serif; color:var(--ink); background:#f4f7fa; }
+        .topbar { display:flex; justify-content:space-between; align-items:center; gap:2rem; padding:2.5rem max(5vw,2rem); color:white; background:linear-gradient(125deg,#0b2540,#174f78); }
+        .eyebrow { color:#8ed1fc; font-size:.75rem; font-weight:800; letter-spacing:.16em; text-transform:uppercase; }
+        h1 { margin:.35rem 0; font-size:clamp(1.8rem,4vw,3rem); }
+        .topbar p { margin:.25rem 0; color:#c5d9e8; }
+        .button { display:inline-flex; align-items:center; justify-content:center; padding:.78rem 1rem; border:0; border-radius:8px; font-weight:800; text-decoration:none; cursor:pointer; white-space:nowrap; }
+        .button-light { color:var(--navy); background:white; }
+        .button-primary { color:white; background:var(--blue); }
+        .layout { width:min(1280px,94%); margin:1.5rem auto 4rem; }
+        .notice { margin-bottom:1rem; padding:.9rem 1.2rem; border-radius:10px; color:#17613a; background:#daf5e5; font-weight:700; transition:opacity .3s ease,transform .3s ease; }
+        .notice.hiding { opacity:0; transform:translateY(-8px); }
+        .card { overflow:hidden; border:1px solid #e4eaf0; border-radius:16px; background:white; box-shadow:0 10px 30px rgba(16,42,67,.07); }
+        .card-header { display:flex; justify-content:space-between; align-items:center; gap:1rem; padding:1.6rem; }
+        .card-header h2 { margin:0 0 .3rem; color:var(--navy); }
+        .card-header p { margin:0; color:var(--muted); }
+        .record-count { padding:.45rem .75rem; border-radius:99px; color:var(--blue); background:#eaf4fb; font-size:.82rem; font-weight:800; }
+        .table-wrap { overflow-x:auto; }
+        table { width:100%; border-collapse:collapse; }
+        th,td { padding:1rem 1.2rem; border-top:1px solid var(--line); text-align:left; vertical-align:middle; }
+        th { color:var(--muted); background:#f8fafc; font-size:.73rem; letter-spacing:.08em; text-transform:uppercase; }
+        .sort-button { display:inline-flex; align-items:center; gap:.45rem; padding:0; border:0; color:inherit; background:transparent; font:inherit; font-weight:800; letter-spacing:inherit; text-transform:inherit; cursor:pointer; }
+        .sort-button:hover,.sort-button:focus-visible { color:var(--blue); }
+        .sort-arrow { display:inline-block; min-width:1rem; color:#9fb3c8; font-size:.9rem; line-height:1; }
+        .sort-button.active .sort-arrow { color:var(--blue); }
+        td { font-size:.9rem; }
+        td small { display:block; margin-top:.3rem; color:var(--muted); }
+        .status-form { display:flex; align-items:center; gap:.6rem; }
+        select { min-width:190px; padding:.7rem 2.2rem .7rem .75rem; border:1px solid #bcccdc; border-radius:8px; color:var(--ink); background:white; font:inherit; }
+        select:focus { border-color:var(--blue); outline:0; box-shadow:0 0 0 3px rgba(23,105,170,.12); }
+        .save-button { padding:.72rem .9rem; }
+        .empty { padding:3rem; color:var(--muted); text-align:center; }
+        @media (max-width:700px) {
+            .topbar { align-items:flex-start; flex-direction:column; }
+            .status-form { align-items:stretch; flex-direction:column; }
+            select { min-width:170px; }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div>
+            <span class="eyebrow">Administration</span>
+            <h1>Application Management</h1>
+            <p>Review records and update passport application statuses.</p>
+        </div>
+        <a class="button button-light" href="/">Back to dashboard</a>
+    </header>
+
+    <main class="layout">
+        {% if message %}<div class="notice" id="status-notice">{{ message }}</div>{% endif %}
+
+        <section class="card">
+            <div class="card-header">
+                <div>
+                    <h2>All applications</h2>
+                    <p>Choose a lifecycle stage and save it for the selected record.</p>
+                </div>
+                <span class="record-count">{{ applications|length }} records</span>
+            </div>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th aria-sort="none"><button class="sort-button" type="button" data-column="0">File no.<span class="sort-arrow" aria-hidden="true">↕</span></button></th>
+                            <th aria-sort="none"><button class="sort-button" type="button" data-column="1">Applicant<span class="sort-arrow" aria-hidden="true">↕</span></button></th>
+                            <th aria-sort="none"><button class="sort-button" type="button" data-column="2">Current status<span class="sort-arrow" aria-hidden="true">↕</span></button></th>
+                            <th aria-sort="none"><button class="sort-button" type="button" data-column="3">Last updated<span class="sort-arrow" aria-hidden="true">↕</span></button></th>
+                        </tr>
+                    </thead>
+                    <tbody id="admin-table-body">
+                    {% for application in applications %}
+                        <tr class="application-row">
+                            <td data-sort="{{ application.file_no|lower }}"><strong>{{ application.file_no }}</strong><small>DOB {{ application.date_of_birth }}</small></td>
+                            <td data-sort="{{ application.email|lower }}">{{ application.email }}<small>{{ application.phone }}</small></td>
+                            <td data-sort="{{ application.current_status|lower }}">
+                                <form class="status-form" action="/admin/update-status" method="post">
+                                    <input type="hidden" name="file_no" value="{{ application.file_no }}">
+                                    <select name="new_status" aria-label="Status for {{ application.file_no }}">
+                                        {% for status in statuses %}
+                                            <option value="{{ status }}" {% if status == application.current_status %}selected{% endif %}>{{ status }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button class="button button-primary save-button" type="submit">Save</button>
+                                </form>
+                            </td>
+                            <td data-sort="{{ application.last_updated.isoformat() }}">{{ application.last_updated.strftime('%d %b %Y, %H:%M') }} UTC</td>
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="4" class="empty">No applications have been registered.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const notice = document.getElementById("status-notice");
+        if (notice) {
+            window.setTimeout(() => {
+                notice.classList.add("hiding");
+                window.setTimeout(() => notice.remove(), 300);
+                const url = new URL(window.location.href);
+                url.searchParams.delete("message");
+                window.history.replaceState({}, "", url);
+            }, 3000);
+        }
+
+        const tableBody = document.getElementById("admin-table-body");
+        const sortButtons = document.querySelectorAll(".sort-button");
+        const textSorter = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+        sortButtons.forEach((button) => {
+            button.addEventListener("click", () => {
+                const columnIndex = Number(button.dataset.column);
+                const direction = button.dataset.direction === "asc" ? "desc" : "asc";
+                const rows = [...tableBody.querySelectorAll(".application-row")];
+
+                rows.sort((firstRow, secondRow) => {
+                    const firstValue = firstRow.cells[columnIndex].dataset.sort;
+                    const secondValue = secondRow.cells[columnIndex].dataset.sort;
+                    const comparison = textSorter.compare(firstValue, secondValue);
+                    return direction === "asc" ? comparison : -comparison;
+                });
+
+                rows.forEach((row) => tableBody.appendChild(row));
+                sortButtons.forEach((item) => {
+                    item.classList.remove("active");
+                    item.dataset.direction = "";
+                    item.querySelector(".sort-arrow").textContent = "↕";
+                    item.closest("th").setAttribute("aria-sort", "none");
+                });
+
+                button.classList.add("active");
+                button.dataset.direction = direction;
+                button.querySelector(".sort-arrow").textContent = direction === "asc" ? "↑" : "↓";
+                button.closest("th").setAttribute(
+                    "aria-sort",
+                    direction === "asc" ? "ascending" : "descending"
+                );
+            });
+        });
+    </script>
+</body>
+</html>
